@@ -1,11 +1,11 @@
-from datetime import datetime
+import datetime
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import log_loss
+import sklearn.linear_model
+import sklearn.ensemble
+import sklearn.preprocessing
+import sklearn.metrics
 import xgboost as xgb
 import s2sphere
 import pickle
@@ -18,16 +18,16 @@ class Models:
 	def dummy_df(self, data, columns):
 		for col in columns:
 			dummies = pd.get_dummies(data[col],prefix=col, dummy_na=False)
-			data = data.drop(col, 1)
+			data = data.drop(col, axis=1)
 			data = pd.concat([data, dummies], axis=1)
 		return data
 
 	def preProcessing(self):
 		data = pd.concat(objs=[self.train, self.test], axis=0).reset_index(drop=True)
 
-		data.insert(loc=0, column='Year', value=data['Dates'].map(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S').year))
-		data.insert(loc=1, column='Month', value=data['Dates'].map(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S').month))
-		data.insert(loc=2, column='Hour', value=data['Dates'].map(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S').hour))
+		data.insert(loc=0, column='Year', value=data['Dates'].map(lambda x: datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S').year))
+		data.insert(loc=1, column='Month', value=data['Dates'].map(lambda x: datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S').month))
+		data.insert(loc=2, column='Hour', value=data['Dates'].map(lambda x: datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S').hour))
 
 		data.insert(loc=8, column='Intersection', value=data['Address'].map(lambda x : 1 if '/' in x else 0))
 		data.insert(loc=9, column='Block', value=data['Address'].map(lambda x : 1 if 'Block' in x else 0))
@@ -57,14 +57,14 @@ class Models:
 
 	def split_data(self):
 		data = self.preProcessing()
-		return [data[:len(self.train)], LabelEncoder().fit_transform(self.train.Category.values), data[len(self.train):]]
+		return [data[:len(self.train)], sklearn.preprocessing.LabelEncoder().fit_transform(self.train.Category.values), data[len(self.train):]]
 
 	def LogisticRegressionModel(self):
 		datasets = self.split_data()
-		lr = LogisticRegression().fit(datasets[0], datasets[1])
+		lr = sklearn.linear_model.LogisticRegression().fit(datasets[0], datasets[1])
 
-		pkl_filename = 'sfcc-prediction.pkl'
-		pkl_file = open('sfcc-prediction.pkl', "wb")
+		pkl_filename = 'sfcc-logistic_regression-model.pkl'
+		pkl_file = open('sfcc-logistic_regression-model.pkl', "wb")
 		pickle.dump(lr, pkl_file)
 		pkl_file.close()
 
@@ -74,14 +74,14 @@ class Models:
 
 		submit = pd.DataFrame(test_y, columns=categories)
 		submit['Id'] = self.test['Id']
-		submit.to_csv("sfcc_pred.csv", index=None)
+		submit.to_csv("sfcc-logistic_regression-predictions.csv", index=None)
 
 	def RandomForestModel(self):
 		datasets = self.split_data()
-		rf = RandomForestClassifier(n_estimators=300, max_depth=20, min_samples_leaf = 1, n_jobs=10, random_state=10).fit(datasets[0], datasets[1])
+		rf = sklearn.ensemble.RandomForestClassifier(n_estimators=300, max_depth=20, min_samples_leaf=1, n_jobs=-1, random_state=10).fit(datasets[0], datasets[1])
 
-		pkl_filename = 'sfcc-prediction.pkl'
-		pkl_file = open('sfcc-prediction.pkl', "wb")
+		pkl_filename = 'sfcc-random_forest-model.pkl'
+		pkl_file = open('sfcc-random_forest-model.pkl', "wb")
 		pickle.dump(rf, pkl_file)
 		pkl_file.close()
 
@@ -91,7 +91,7 @@ class Models:
 
 		submit = pd.DataFrame(test_y, columns=categories)
 		submit['Id'] = self.test['Id']
-		submit.to_csv("sfcc_pred.csv", index=None)
+		submit.to_csv("sfcc-random_forest-predictions.csv", index=None)
 
 	def XGBoostModel(self):
 		datasets = self.split_data()
@@ -100,8 +100,8 @@ class Models:
 		xgbtest = xgb.DMatrix(datasets[2])
 		bst = xgb.train(param, xgbtrain, 50)
 
-		pkl_filename = 'sfcc-prediction.pkl'
-		pkl_file = open('sfcc-prediction.pkl', "wb")
+		pkl_filename = 'sfcc-xgboost-model.pkl'
+		pkl_file = open('sfcc-xgboost-model.pkl', "wb")
 		pickle.dump(bst, pkl_file)
 		pkl_file.close()
 
@@ -111,13 +111,4 @@ class Models:
 
 		submit = pd.DataFrame(test_y, columns=categories)
 		submit['Id'] = self.test['Id']
-		submit.to_csv("sfcc_pred.csv", index=None)
-
-
-if __name__=="__main__":
-	#train_path = '../input/train.csv'
-	#test_path = '../input/test.csv'
-	train_path = 'train.csv'
-	test_path = 'test.csv'
-	model = Models(train_path, test_path)
-	model.RandomForestModel()
+		submit.to_csv("sfcc-xgboost-predictions.csv", index=None)
